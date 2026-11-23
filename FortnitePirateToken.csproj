@@ -18,6 +18,15 @@
         </RestoreAdditionalProjectSources>
     </PropertyGroup>
 
+    <!-- Model and textures under Assets are compiled into the DLL and read at runtime -->
+    <PropertyGroup>
+        <DefaultItemExcludes>$(DefaultItemExcludes);Assets\**</DefaultItemExcludes>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\**\*.obj;Assets\**\*.png"
+                          LogicalName="Assets/%(RecursiveDir)%(Filename)%(Extension)"/>
+    </ItemGroup>
+
     <!-- Package References -->
     <ItemGroup>
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
@@ -27,6 +36,7 @@
         <PackageReference Include="BepInEx.Core" Version="5.*" ExcludeAssets="runtime"/>
         <PackageReference Include="UnityEngine.Modules" Version="2022.3.62" IncludeAssets="compile" PrivateAssets="all"/>
         <PackageReference Include="R.E.P.O.GameLibs.Steam" Version="*-*" PrivateAssets="all"/>
+        <PackageReference Include="Zehs.REPOLib" Version="4.*"/>
     </ItemGroup>
 
 </Project>
