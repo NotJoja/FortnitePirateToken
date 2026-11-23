@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace FortnitePirateToken;
 
-[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.3")]
+[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.4")]
 [BepInDependency("REPOLib", BepInDependency.DependencyFlags.HardDependency)]
 public class FortnitePirateTokenPlugin : BaseUnityPlugin
 {
@@ -36,9 +36,9 @@ public class FortnitePirateTokenPlugin : BaseUnityPlugin
         gameObject.transform.parent = null;
         gameObject.hideFlags = HideFlags.HideAndDontSave;
 
-        Chance = Config.Bind("Spawning", "Chance", SpawnChance.OneIn137500,
+        Chance = Config.Bind("Spawning", "Chance", SpawnChance.OneIn30000,
             "Chance for each valuable spawned in a level to become a Pirate Shop Token. " +
-            "OneIn137500 (default) is the original Fortnite drop chance; OneIn30000 is more common.");
+            "OneIn30000 is the default; OneIn137500 is the original Fortnite drop chance.");
 
         Harmony ??= new Harmony(Info.Metadata.GUID);
         Harmony.PatchAll();

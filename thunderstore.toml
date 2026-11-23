@@ -4,7 +4,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "Joja"
 name = "FortnitePirateToken"
-versionNumber = "1.0.3"
+versionNumber = "1.0.4"
 description = "A super rare, indestructible $0 valuable. Extract the Pirate Shop Token and the next shop is completely free."
 websiteUrl = "https://github.com/NotJoja/FortnitePirateToken"
 containsNsfwContent = false
