@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -8,7 +9,7 @@ using UnityEngine;
 
 namespace FortnitePirateToken;
 
-[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.4")]
+[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.5")]
 [BepInDependency("REPOLib", BepInDependency.DependencyFlags.HardDependency)]
 public class FortnitePirateTokenPlugin : BaseUnityPlugin
 {
@@ -19,14 +20,46 @@ public class FortnitePirateTokenPlugin : BaseUnityPlugin
 
     internal enum SpawnChance
     {
-        OneIn30000,
+        OneIn1375,
         OneIn137500,
+        Custom,
     }
 
-    /// <summary>Per-valuable chance of it being the token. An enum so REPOConfig shows it as a dropdown.</summary>
+    /// <summary>Preset chance. An enum so REPOConfig shows it as a dropdown.</summary>
     internal static ConfigEntry<SpawnChance> Chance { get; private set; } = null!;
 
-    internal static int OneInN => Chance.Value == SpawnChance.OneIn137500 ? 137500 : 30000;
+    /// <summary>
+    /// Your own odds, as text, used when Chance is set to Custom. REPOConfig turns a number setting into a slider capped
+    /// at 100, but shows a text setting as a box you can type any number into; so it is parsed here.
+    /// </summary>
+    internal static ConfigEntry<string> CustomOneIn { get; private set; } = null!;
+
+    /// <summary>Each valuable has a 1 in this many chance of being the token.</summary>
+    internal static int OneInN
+    {
+        get
+        {
+            switch (Chance.Value)
+            {
+                case SpawnChance.OneIn137500:
+                    return 137500;
+                case SpawnChance.Custom:
+                    var custom = ParseCustom(CustomOneIn.Value);
+                    return custom > 0 ? custom : 1375; // nothing usable typed in: fall back to the default
+                default:
+                    return 1375;
+            }
+        }
+    }
+
+    // "50000", "50,000" and "50 000" all work. Empty, 0 or anything that is not a number counts as nothing typed in.
+    private static int ParseCustom(string? text)
+    {
+        var cleaned = new string((text ?? "").Where(c => char.IsDigit(c)).ToArray());
+        if (cleaned.Length == 0 || cleaned.Length > 9) return cleaned.Length > 9 ? int.MaxValue : 0;
+
+        return int.Parse(cleaned, System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private void Awake()
     {
@@ -36,9 +69,12 @@ public class FortnitePirateTokenPlugin : BaseUnityPlugin
         gameObject.transform.parent = null;
         gameObject.hideFlags = HideFlags.HideAndDontSave;
 
-        Chance = Config.Bind("Spawning", "Chance", SpawnChance.OneIn30000,
+        Chance = Config.Bind("Spawning", "Chance", SpawnChance.OneIn1375,
             "Chance for each valuable spawned in a level to become a Pirate Shop Token. " +
-            "OneIn30000 is the default; OneIn137500 is the original Fortnite drop chance.");
+            "OneIn1375 is the default; OneIn137500 is the original Fortnite drop chance; Custom uses CustomOneIn.");
+        CustomOneIn = Config.Bind("Spawning", "CustomOneIn", "0",
+            "Your own odds: each valuable has a 1 in this many chance of becoming a Pirate Shop Token (for example 5000). " +
+            "Only used when Chance is set to Custom. 1 means every valuable.");
 
         Harmony ??= new Harmony(Info.Metadata.GUID);
         Harmony.PatchAll();

@@ -10,7 +10,9 @@ A [R.E.P.O.](https://store.steampowered.com/app/3241660/REPO/) mod that adds the
 
 ## The reward
 
-Extract the token and **everything in the next shop costs nothing**: every item, upgrade and health pack, and the **upgrade stand's reroll** too. Free stuff for the whole team, once per token. The free shop only lasts for that shop; the next normal level goes back to regular prices.
+Extract the token and your next shop is **completely free**: every item, upgrade and health pack, and the **upgrade stand's reroll** too. Free stuff for the whole team.
+
+**It stacks.** Every token you extract banks one free shop, and each shop you visit uses one up. Find five and the next five shops cost nothing; find another one later and it is added on top. The count is saved with your run and starts over when you start a new run.
 
 ## The found animation
 
@@ -22,14 +24,15 @@ Every valuable the game spawns in a level rolls its own chance of turning into t
 
 | Setting | Chance per valuable |
 | --- | --- |
-| `OneIn30000` (default) | 1 in 30,000 |
+| `OneIn1375` (default) | 1 in 1,375 |
 | `OneIn137500` | 1 in 137,500 (the original Fortnite drop chance) |
+| `Custom` | Your own number: type it into `CustomOneIn`, like `5000` for 1 in 5,000. |
 
-Even at 1 in 30,000 you will go a long time between sightings, so don't expect to find it every run.
+At 1 in 1,375 on a level with 81 valuables, you will see it roughly once every 17 levels.
 
 ## Config
 
-Change the chance in the config file (`Spawning/Chance`) or live in-game with [REPOConfig](https://thunderstore.io/c/repo/p/nickklmao/REPOConfig/), where it shows up as a dropdown. The change applies from the next level.
+Change the chance in the config file (`Spawning/Chance`, and `Spawning/CustomOneIn` for your own number) or live in-game with [REPOConfig](https://thunderstore.io/c/repo/p/nickklmao/REPOConfig/), where `Chance` shows up as a dropdown and `CustomOneIn` as a box you can type any number into. `CustomOneIn` is only used when `Chance` is set to `Custom`. The change applies from the next level.
 
 ## Multiplayer
 

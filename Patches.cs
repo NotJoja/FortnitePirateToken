@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace FortnitePirateToken;
 
-// Every valuable the host spawns has a 1-in-N chance (30000 or 137500, set in the config / REPOConfig) of becoming a Pirate Shop Token instead.
+// Every valuable the host spawns has a 1-in-N chance (1375 by default; see Chance and CustomOneIn in the config / REPOConfig) of becoming a Pirate Shop Token instead.
 [HarmonyPatch(typeof(ValuableDirector), "SpawnValuable")]
 internal static class TokenSpawnPatch
 {
@@ -37,56 +37,95 @@ internal static class TokenSpawnPatch
         candidate != null && (ReferenceEquals(candidate, token) || candidate.PrefabName == token.PrefabName);
 }
 
-// A new level starts: whatever free-shop state was left over is over. Not in the shop itself: the shop's items are
-// spawned before this runs but only price themselves a frame later, so clearing here made the last few cost money.
-[HarmonyPatch(typeof(ValuableDirector), nameof(ValuableDirector.SetupHost))]
-internal static class FreeShopResetPatch
+// A shop is starting (host): use up one banked free shop, if there is one. The items are spawned after this, and each
+// prices itself a little later (see FreeShopPricePatch), so by then the shop is already marked free.
+[HarmonyPatch]
+internal static class FreeShopEnterPatch
 {
+    // ShopInitialize has two overloads; the one with the item list is the one that does the work.
+    private static MethodBase TargetMethod() =>
+        AccessTools.GetDeclaredMethods(typeof(ShopManager)).First(m => m.Name == "ShopInitialize" && m.GetParameters().Length == 1);
+
     private static void Prefix()
     {
-        if (!SemiFunc.RunIsShop()) FreeShop.Active = false;
+        if (SemiFunc.IsMasterClientOrSingleplayer() && SemiFunc.RunIsShop()) FreeShop.EnterShop();
     }
 }
 
-// Extracting the token (host only: that is where the game destroys extracted valuables) makes the next shop free.
-[HarmonyPatch(typeof(ExtractionPoint), "DestroyAllPhysObjectsInHaulList")]
-internal static class TokenExtractedAllPatch
+// A normal level is starting: the next shop counts again. Not in the shop itself: its items are spawned before this
+// runs but only price themselves a frame later, so clearing there made the last few cost money.
+[HarmonyPatch(typeof(ValuableDirector), nameof(ValuableDirector.SetupHost))]
+internal static class FreeShopLeavePatch
 {
     private static void Prefix()
     {
+        if (!SemiFunc.RunIsShop()) FreeShop.LeaveShop();
+    }
+}
+
+// Extracting a token banks one free shop. Host only: that is where the game destroys extracted valuables. The tokens
+// are counted once they have really left the haul list, because the game calls these methods over and over.
+[HarmonyPatch(typeof(ExtractionPoint), "DestroyAllPhysObjectsInHaulList")]
+internal static class TokenExtractedAllPatch
+{
+    private static void Prefix(out int __state)
+    {
+        __state = 0;
         if (!SemiFunc.IsMasterClientOrSingleplayer()) return;
 
-        var list = RoundDirector.instance.dollarHaulList;
-        if (list.Any(item => item != null && item.GetComponent<TokenMarker>() != null))
-        {
-            TokenExtractedPatchHelper.Mark();
-        }
+        __state = RoundDirector.instance.dollarHaulList.Count(item => item != null && item.GetComponent<TokenMarker>() != null);
+    }
+
+    private static void Postfix(int __state)
+    {
+        if (__state > 0 && RoundDirector.instance.dollarHaulList.Count == 0) FreeShop.Add(__state);
     }
 }
 
 [HarmonyPatch(typeof(ExtractionPoint), "DestroyTheFirstPhysObjectsInHaulList")]
 internal static class TokenExtractedFirstPatch
 {
-    private static void Prefix()
+    private static void Prefix(out GameObject? __state)
     {
+        __state = null;
         if (!SemiFunc.IsMasterClientOrSingleplayer()) return;
 
         var list = RoundDirector.instance.dollarHaulList;
-        if (list.Count > 0 && list[0] != null && list[0].GetComponent<TokenMarker>() != null)
-        {
-            TokenExtractedPatchHelper.Mark();
-        }
+        if (list.Count > 0 && list[0] != null && list[0].GetComponent<TokenMarker>() != null) __state = list[0];
+    }
+
+    private static void Postfix(GameObject? __state)
+    {
+        // ReferenceEquals: a Unity object that was just destroyed would compare equal to null.
+        if (!ReferenceEquals(__state, null) && !RoundDirector.instance.dollarHaulList.Contains(__state)) FreeShop.Add(1);
     }
 }
 
-internal static class TokenExtractedPatchHelper
+// Free shops belong to one save. The game merges a loaded save into the stats already in memory instead of clearing
+// them first, so wipe ours whenever a save is loaded, created or deleted (losing a run deletes its save) and whenever
+// stats are reset. A loaded save then brings back only the free shops that were saved in it.
+[HarmonyPatch(typeof(StatsManager), nameof(StatsManager.LoadGame))]
+internal static class FreeShopClearOnLoadPatch
 {
-    public static void Mark()
-    {
-        if (FreeShop.Active) return;
-        FreeShop.Active = true;
-        FortnitePirateTokenPlugin.Logger.LogInfo("Pirate Shop Token extracted: the next shop is free.");
-    }
+    private static void Prefix() => FreeShop.Clear();
+}
+
+[HarmonyPatch(typeof(StatsManager), nameof(StatsManager.SaveFileCreate))]
+internal static class FreeShopClearOnCreatePatch
+{
+    private static void Prefix() => FreeShop.Clear();
+}
+
+[HarmonyPatch(typeof(StatsManager), nameof(StatsManager.SaveFileDelete))]
+internal static class FreeShopClearOnDeletePatch
+{
+    private static void Prefix() => FreeShop.Clear();
+}
+
+[HarmonyPatch(typeof(StatsManager), nameof(StatsManager.ResetAllStats))]
+internal static class FreeShopClearOnResetPatch
+{
+    private static void Postfix() => FreeShop.Clear();
 }
 
 // Shop items get their price here (host only); zero it and sync the new price to the clients.

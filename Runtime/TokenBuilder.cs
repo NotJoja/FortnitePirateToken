@@ -19,8 +19,11 @@ internal static class TokenBuilder
     // The model is ~0.194 m wide. 4.5x makes it ~0.87 m, as wide as the Wizard Cube of Knowledge (~0.88 m).
     private const float Scale = 4.5f;
 
-    // The mesh origin is not the centre: the model spans y -0.0305..0.0140.
-    private const float ModelCentreY = -0.0083f;
+    // The model spans y -0.0305..0.0140 (0.0446 tall). The game places a valuable by its origin sitting on the floor of
+    // its spawn volume, so the origin has to be at the BOTTOM of the token: centred on the origin, half of it spawned
+    // under the floor, fell out of the map and was sent to the truck (see PhysGrabObject's y < -50 rescue).
+    private const float ModelBottomY = -0.0305f;
+    private const float ModelHeight = 0.0446f;
 
     public static PrefabRef? Prefab { get; private set; }
 
@@ -117,7 +120,7 @@ internal static class TokenBuilder
         var visual = new GameObject("token").transform;
         visual.SetParent(objectNode, false);
         visual.localScale = Vector3.one * Scale;
-        visual.localPosition = new Vector3(0f, -ModelCentreY * Scale, 0f);
+        visual.localPosition = new Vector3(0f, -ModelBottomY * Scale, 0f); // bottom of the model at y = 0
 
         // The gem's UVs are a stretched dome unwrap, which distorts the F. Project it straight down instead, the same
         // way the Blender material places it (bounding-box "generated" coordinates, over the dome and its rim).
@@ -190,6 +193,7 @@ internal static class TokenBuilder
     {
         var fx = new GameObject("Glow FX").transform;
         fx.SetParent(parent, false);
+        fx.localPosition = new Vector3(0f, ModelHeight * Scale / 2f, 0f); // centred on the token
 
         var light = fx.gameObject.AddComponent<Light>();
         light.type = LightType.Point;
@@ -365,7 +369,7 @@ internal static class TokenBuilder
         var layer = LayerMask.NameToLayer("PhysGrabObject");
 
         // Two boxes, one turned 45 degrees, approximate the round disc (model is 0.194 wide, 0.045 tall).
-        var size = new Vector3(0.185f * Scale, 0.05f * Scale, 0.185f * Scale);
+        var size = new Vector3(0.185f * Scale, ModelHeight * Scale, 0.185f * Scale);
         for (var i = 0; i < 2; i++)
         {
             var go = new GameObject($"Valuable Collider ({i})") { layer = layer == -1 ? 0 : layer, tag = "Phys Grab Object" };
@@ -374,6 +378,7 @@ internal static class TokenBuilder
 
             var box = go.AddComponent<BoxCollider>();
             box.size = i == 0 ? size : new Vector3(size.x * 0.8f, size.y, size.z * 0.8f);
+            box.center = new Vector3(0f, size.y / 2f, 0f); // sits on the floor: from y = 0 up
             go.AddComponent<PhysGrabObjectBoxCollider>();
             if (physicsMaterial != null) SharedMaterialProperty?.SetValue(box, physicsMaterial);
             go.AddComponent<PhysGrabObjectCollider>().colliderID = i;
