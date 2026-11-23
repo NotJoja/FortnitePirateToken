@@ -8,16 +8,16 @@ namespace FortnitePirateToken.Runtime;
 
 /// <summary>
 /// Builds the Pirate Shop Token valuable prefab at runtime from a vanilla valuable (which provides the networking and
-/// physics components) and registers it as a network prefab. It is deliberately NOT added to any level preset: the
-/// spawn patch rolls for it separately.
+/// physics components) and registers it with REPOLib. The spawn patch keeps it out of the normal valuable pool and
+/// rolls for it separately.
 /// </summary>
 internal static class TokenBuilder
 {
     public const string Name = "Pirate Shop Token";
     private const string Folder = "token";
 
-    // The model is ~0.19 m wide; scaled up a little so it is easy to grab.
-    private const float Scale = 1.5f;
+    // The model is ~0.194 m wide. 4.5x makes it ~0.87 m, as wide as the Wizard Cube of Knowledge (~0.88 m).
+    private const float Scale = 4.5f;
 
     // The mesh origin is not the centre: the model spans y -0.0305..0.0140.
     private const float ModelCentreY = -0.0083f;
@@ -50,7 +50,9 @@ internal static class TokenBuilder
         try
         {
             var prefab = Build(template);
-            Prefab = NetworkPrefabs.RegisterNetworkPrefab($"Valuables/{Name}", prefab);
+            // Registered in the generic preset so it shows up in REPOLib's valuable list (spawn mods use it).
+            // TokenSpawnPatch stops the director from ever picking it by itself.
+            Prefab = Valuables.RegisterValuable(prefab, new List<string> { "Valuables - Generic" });
             if (Prefab == null)
             {
                 FortnitePirateTokenPlugin.Logger.LogError("REPOLib refused to register the token prefab.");
@@ -115,8 +117,12 @@ internal static class TokenBuilder
         visual.localScale = Vector3.one * Scale;
         visual.localPosition = new Vector3(0f, -ModelCentreY * Scale, 0f);
 
+        // The gem's UVs are a stretched dome unwrap, which distorts the F. Project it straight down instead, the same
+        // way the Blender material places it (bounding-box "generated" coordinates, over the dome and its rim).
+        ProjectFromTop(meshes["gem"], meshes["gem_rim"]);
+
         // OBJ group -> texture (base also holds the wood ring; the gem texture has the Fortnite F baked in).
-        foreach (var (part, texture) in new[] { ("base", "base.png"), ("spike", "spike.png"), ("gem", "gem.png") })
+        foreach (var (part, texture) in new[] { ("base", "base.png"), ("spike", "spike.png"), ("gem", "gem.png"), ("gem_rim", "") })
         {
             if (!meshes.TryGetValue(part, out var mesh))
             {
@@ -126,8 +132,37 @@ internal static class TokenBuilder
             var go = new GameObject(part);
             go.transform.SetParent(visual, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = CreateMaterial(part, texture);
+            go.AddComponent<MeshRenderer>().sharedMaterial = texture.Length == 0
+                ? CreateColorMaterial(part, new Color(0.5f, 0.28f, 0.12f))
+                : CreateMaterial(part, texture);
         }
+    }
+
+    private static void ProjectFromTop(Mesh dome, Mesh rim)
+    {
+        var bounds = dome.bounds;
+        bounds.Encapsulate(rim.bounds);
+
+        // The loader mirrors X, so the original Blender X is -x here; Blender Y is -z.
+        var vertices = dome.vertices;
+        var uvs = new Vector2[vertices.Length];
+        for (var i = 0; i < vertices.Length; i++)
+        {
+            uvs[i] = new Vector2(
+                (bounds.max.x - vertices[i].x) / bounds.size.x,
+                (bounds.max.z - vertices[i].z) / bounds.size.z);
+        }
+
+        dome.uv = uvs;
+    }
+
+    private static Material CreateColorMaterial(string name, Color color)
+    {
+        var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Sprites/Default");
+        var material = new Material(shader) { name = name, color = color };
+        if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", 0.3f);
+        if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", 0.5f);
+        return material;
     }
 
     private static Material CreateMaterial(string name, string texturePath)
@@ -149,8 +184,8 @@ internal static class TokenBuilder
     {
         var layer = LayerMask.NameToLayer("PhysGrabObject");
 
-        // Two boxes, one turned 45 degrees, approximate the round disc.
-        var size = new Vector3(0.27f, 0.075f, 0.27f);
+        // Two boxes, one turned 45 degrees, approximate the round disc (model is 0.194 wide, 0.045 tall).
+        var size = new Vector3(0.185f * Scale, 0.05f * Scale, 0.185f * Scale);
         for (var i = 0; i < 2; i++)
         {
             var go = new GameObject($"Valuable Collider ({i})") { layer = layer == -1 ? 0 : layer, tag = "Phys Grab Object" };
@@ -193,7 +228,7 @@ internal static class TokenBuilder
 
         valuable.physAttributePreset = PresetLibrary.Find<PhysAttribute>("phys", "PhysAttribute Medium") ?? valuable.physAttributePreset;
         valuable.audioPreset = PresetLibrary.Find<PhysAudio>("audio", "PhysAudio - Gem Burger") ?? valuable.audioPreset;
-        valuable.volumeType = ValuableVolume.Type.Tiny;
+        valuable.volumeType = ValuableVolume.Type.Big;
         valuable.particleColors = new Gradient
         {
             colorKeys = new[]

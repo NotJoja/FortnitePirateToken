@@ -17,8 +17,16 @@ public class FortnitePirateTokenPlugin : BaseUnityPlugin
     private ManualLogSource _logger => base.Logger;
     internal Harmony? Harmony { get; set; }
 
-    /// <summary>Every valuable the game spawns has a 1 in this many chance of being the token.</summary>
-    internal static ConfigEntry<int> OneInN { get; private set; } = null!;
+    internal enum SpawnChance
+    {
+        OneIn30000,
+        OneIn137500,
+    }
+
+    /// <summary>Per-valuable chance of it being the token. An enum so REPOConfig shows it as a dropdown.</summary>
+    internal static ConfigEntry<SpawnChance> Chance { get; private set; } = null!;
+
+    internal static int OneInN => Chance.Value == SpawnChance.OneIn137500 ? 137500 : 30000;
 
     private void Awake()
     {
@@ -28,8 +36,9 @@ public class FortnitePirateTokenPlugin : BaseUnityPlugin
         gameObject.transform.parent = null;
         gameObject.hideFlags = HideFlags.HideAndDontSave;
 
-        OneInN = Config.Bind("Spawning", "OneInN", 30000,
-            "Each valuable spawned in a level has a 1 in this many chance of becoming a Pirate Shop Token.");
+        Chance = Config.Bind("Spawning", "Chance", SpawnChance.OneIn30000,
+            "Chance for each valuable spawned in a level to become a Pirate Shop Token. " +
+            "OneIn30000 is the default; OneIn137500 is the original Fortnite drop chance.");
 
         Harmony ??= new Harmony(Info.Metadata.GUID);
         Harmony.PatchAll();
