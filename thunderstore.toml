@@ -4,7 +4,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "Joja"
 name = "FortnitePirateToken"
-versionNumber = "1.0.6"
+versionNumber = "1.0.7"
 description = "An indestructible $0 valuable with a golden glow and sparks. Extract Pirate Shop Tokens to bank free shops: everything costs nothing, even upgrade rerolls. Free shops stack. Adjustable odds."
 websiteUrl = "https://github.com/NotJoja/FortnitePirateToken"
 containsNsfwContent = false

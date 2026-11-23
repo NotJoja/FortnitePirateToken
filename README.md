@@ -17,7 +17,7 @@ Extract the token and your next shop is **completely free**: every item, upgrade
 
 ## The found animation
 
-The first time someone grabs the token, a "YOU FOUND PIRATE SHOP ACCESS" banner with sound plays on that player's screen only. Everyone else is told it has been found, so it never plays twice for the same token.
+The first time anyone grabs the token, a "YOU FOUND PIRATE SHOP ACCESS" banner with sound plays on **everyone's** screen. After that the token counts as found: if someone else touches the same token again, nothing plays. A second token that turns up later gets its own animation.
 
 ## How rare is it?
 
