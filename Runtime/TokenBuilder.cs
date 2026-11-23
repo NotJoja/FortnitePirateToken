@@ -102,9 +102,11 @@ internal static class TokenBuilder
 
         BuildVisuals(objectNode);
         BuildColliders(objectNode, physicsMaterial);
+        AddGlowAndSparks(objectNode);
         ApplyValuableSettings(root);
 
         root.AddComponent<TokenMarker>();
+        root.AddComponent<TokenReveal>();
         return root;
     }
 
@@ -134,7 +136,7 @@ internal static class TokenBuilder
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             go.AddComponent<MeshRenderer>().sharedMaterial = texture.Length == 0
                 ? CreateColorMaterial(part, new Color(0.5f, 0.28f, 0.12f))
-                : CreateMaterial(part, texture);
+                : CreateMaterial(part, texture, glow: part == "gem");
         }
     }
 
@@ -165,13 +167,191 @@ internal static class TokenBuilder
         return material;
     }
 
-    private static Material CreateMaterial(string name, string texturePath)
+    private static Material CreateMaterial(string name, string texturePath, bool glow = false)
     {
         var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Sprites/Default");
         var material = new Material(shader) { name = name, color = Color.white, mainTexture = EmbeddedAssets.LoadTexture($"{Folder}/{texturePath}") };
         if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", 0.3f);
         if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", 0.5f);
+        if (glow && material.HasProperty("_EmissionColor"))
+        {
+            material.EnableKeyword("_EMISSION");
+            material.SetTexture("_EmissionMap", material.mainTexture);
+            material.SetColor("_EmissionColor", new Color(0.55f, 0.55f, 0.55f));
+        }
+
         return material;
+    }
+
+    private static readonly Color GoldLight = new(1f, 0.72f, 0.25f);
+
+    /// <summary>A golden point light, a soft pulsing halo and rising sparks.</summary>
+    private static void AddGlowAndSparks(Transform parent)
+    {
+        var fx = new GameObject("Glow FX").transform;
+        fx.SetParent(parent, false);
+
+        var light = fx.gameObject.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = GoldLight;
+        light.range = 4f;
+        light.intensity = 2f;
+        light.shadows = LightShadows.None;
+
+        var material = CreateParticleMaterial();
+        AddHalo(fx, material);
+        AddSparks(fx, material);
+    }
+
+    private static Material CreateParticleMaterial()
+    {
+        // Additive looks best; otherwise plain alpha blending. Particles/Standard Unlit is last because it renders opaque
+        // (a solid square) unless a shader variant the build may have stripped is switched on.
+        var shader = Shader.Find("Legacy Shaders/Particles/Additive")
+                     ?? Shader.Find("Sprites/Default") // alpha blended without keywords, so no stripped variants
+                     ?? Shader.Find("Particles/Standard Unlit")
+                     ?? Shader.Find("Standard");
+        FortnitePirateTokenPlugin.Logger.LogInfo($"Token particles use shader '{shader.name}'.");
+
+        var material = new Material(shader) { name = "token glow", mainTexture = SoftDotTexture() };
+        if (material.HasProperty("_TintColor")) material.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+
+        // The Standard particle shaders start out opaque, which ignores the texture's alpha and draws a solid square.
+        // Switch them to additive blending (what the shader's own "Additive" blend mode does).
+        if (material.HasProperty("_Mode") || material.HasProperty("_SrcBlend"))
+        {
+            if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 4f);
+            if (material.HasProperty("_SrcBlend")) material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (material.HasProperty("_DstBlend")) material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 0f);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.EnableKeyword("_ALPHABLEND_ON");
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+
+        return material;
+    }
+
+    // A white dot that fades out towards its edge.
+    private static Texture2D SoftDotTexture()
+    {
+        const int size = 64;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "soft dot", wrapMode = TextureWrapMode.Clamp };
+        var pixels = new Color[size * size];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(size / 2f, size / 2f)) / (size / 2f);
+                var a = Mathf.Clamp01(1f - d);
+                a *= a;
+                pixels[y * size + x] = new Color(1f, 1f, 1f, a);
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        return texture;
+    }
+
+    private static Gradient FadeInOut(Color color, float peakAlpha)
+    {
+        return new Gradient
+        {
+            colorKeys = new[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
+            alphaKeys = new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(peakAlpha, 0.5f),
+                new GradientAlphaKey(0f, 1f),
+            },
+        };
+    }
+
+    // Overlapping slow pulses of one big soft particle add up to a steady halo around the token.
+    private static void AddHalo(Transform parent, Material material)
+    {
+        var go = new GameObject("Halo");
+        go.transform.SetParent(parent, false);
+        var system = go.AddComponent<ParticleSystem>();
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = system.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.simulationSpace = ParticleSystemSimulationSpace.Local;
+        main.startLifetime = 2f;
+        main.startSpeed = 0f;
+        main.startSize = 1.7f;
+        main.startColor = new Color(1f, 0.75f, 0.3f, 1f);
+        main.maxParticles = 8;
+
+        var emission = system.emission;
+        emission.rateOverTime = 2f;
+
+        var shape = system.shape;
+        shape.enabled = false;
+
+        var color = system.colorOverLifetime;
+        color.enabled = true;
+        color.color = FadeInOut(Color.white, 0.3f);
+
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+
+        system.Play();
+    }
+
+    private static void AddSparks(Transform parent, Material material)
+    {
+        var go = new GameObject("Sparks");
+        go.transform.SetParent(parent, false);
+        go.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f); // cone shoots along +Z, so this is straight up
+        var system = go.AddComponent<ParticleSystem>();
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = system.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.9f, 1.8f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.15f, 0.55f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.07f);
+        main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.92f, 0.55f, 1f), new Color(1f, 0.6f, 0.15f, 1f));
+        main.gravityModifier = -0.03f;
+        main.maxParticles = 80;
+
+        var emission = system.emission;
+        emission.rateOverTime = 20f;
+
+        var shape = system.shape;
+        shape.enabled = true;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 25f;
+        shape.radius = 0.4f;
+        shape.radiusThickness = 1f;
+
+        var noise = system.noise;
+        noise.enabled = true;
+        noise.strength = 0.15f;
+        noise.frequency = 1.5f;
+
+        var size = system.sizeOverLifetime;
+        size.enabled = true;
+        size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));
+
+        var color = system.colorOverLifetime;
+        color.enabled = true;
+        color.color = FadeInOut(Color.white, 1f);
+
+        var renderer = go.GetComponent<ParticleSystemRenderer>();
+        renderer.sharedMaterial = material;
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+
+        system.Play();
     }
 
     // The collider material type was renamed between Unity versions, so it is copied via reflection.

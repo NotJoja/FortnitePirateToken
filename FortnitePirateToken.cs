@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace FortnitePirateToken;
 
-[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.0")]
+[BepInPlugin("Joja.FortnitePirateToken", "FortnitePirateToken", "1.0.2")]
 [BepInDependency("REPOLib", BepInDependency.DependencyFlags.HardDependency)]
 public class FortnitePirateTokenPlugin : BaseUnityPlugin
 {
