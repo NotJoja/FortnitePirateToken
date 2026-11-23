@@ -22,10 +22,10 @@ Every valuable the game spawns in a level rolls its own chance of turning into t
 
 | Setting | Chance per valuable |
 | --- | --- |
-| `OneIn30000` (default) | 1 in 30,000 |
-| `OneIn137500` | 1 in 137,500 (the original Fortnite drop chance) |
+| `OneIn137500` (default) | 1 in 137,500 (the original Fortnite drop chance) |
+| `OneIn30000` | 1 in 30,000 |
 
-Even at 1 in 30,000 you will go a long time between sightings, so don't expect to find it every run.
+Even at 1 in 30,000 you will go a long time between sightings, and at the default 1 in 137,500 it is extremely rare, so don't expect to find it often.
 
 ## Config
 
