@@ -1,11 +1,12 @@
 # Fortnite Pirate Token
 
-A [R.E.P.O.](https://store.steampowered.com/app/3241660/REPO/) mod that adds the **Pirate Shop Token**, a very rare valuable that is worth nothing, can't be broken, and makes the next shop **completely free** when you extract it.
+A [R.E.P.O.](https://store.steampowered.com/app/3241660/REPO/) mod that adds the **Pirate Shop Token**: a rare, indestructible valuable worth $0 that glows gold and throws sparks. Extract one and you bank a **free shop**: everything in it, even the upgrade stand's reroll, costs nothing. Free shops **stack**, so five tokens means five free shops.
 
 ## The token
 
 - A big, flat, spiked pirate token with a glowing orange gem and the Fortnite "F". It is about as wide as the Wizard Cube of Knowledge.
 - It is **worth $0** and **indestructible**: drop it, throw it, let monsters hit it, nothing breaks it.
+- It has a **golden glow** and gold **sparks** rising off it, so it is easy to spot.
 - It is a valuable, so you have to haul it to the extraction point like anything else.
 
 ## The reward
